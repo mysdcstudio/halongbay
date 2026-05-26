@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DAP Pro - Final Optimized</title>
+  
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+  <style>
+    body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+
+    /* MÀN HÌNH KHỞI ĐẦU */
+    #ui-container {
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: #000; z-index: 10001;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+    }
+
+    /* NÚT "X" THOÁT NHỎ */
+    #close-btn {
+      position: absolute; top: 20px; left: 20px;
+      width: 35px; height: 35px;
+      background: rgba(0, 0, 0, 0.5);
+      color: white; border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 50%; font-size: 18px; cursor: pointer;
+      display: none; z-index: 10002; align-items: center; justify-content: center;
+    }
+
+    /* LỚP PHỦ KẾT THÚC */
+    #end-overlay {
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.7); 
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      display: none; flex-direction: column; justify-content: center; align-items: center;
+      z-index: 10000;
+    }
+
+    .btn {
+      padding: 16px 32px; margin: 12px; font-size: 16px; font-weight: bold;
+      border: none; border-radius: 12px; cursor: pointer; text-transform: uppercase;
+    }
+
+    #start-btn { background: #ff3b30; color: white; }
+    #continue-btn { background: #ffffff; color: #000; }
+    #back-btn { background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255,255,255,0.3); }
+    
+    .instruction { color: #888; font-size: 13px; margin-top: 15px; text-align: center; }
+  </style>
+</head>
+
+<body>
+
+  <div id="close-btn" onclick="location.reload()">✕</div>
+
+  <div id="ui-container">
+    <button id="start-btn" class="btn">CHẠM ĐỂ KHÁM PHÁ AR</button>
+    <p class="instruction">Vui lòng chọn "Cho phép" Camera khi được hỏi</p>
+  </div>
+
+  <div id="end-overlay">
+    <h2 style="color: white; margin-bottom: 20px;">Trải nghiệm hoàn tất</h2>
+    <button id="continue-btn" class="btn">Tiếp tục trải nghiệm</button>
+    <button id="back-btn" class="btn">Quay lại trang chủ</button>
+  </div>
+
+  <a-scene 
+    mindar-image="imageTargetSrc: targets.mind; autoStart: false; filterMinCF: 0.0001; filterBeta: 0.001; missTolerance: 100; warmupSteps: 10;"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+    color-space="sRGB"
+    renderer="colorManagement: true, physicallyCorrectLights"
+  >
+
+    <a-assets>
+      <video id="video" crossorigin="anonymous" src="./video.mp4" playsinline webkit-playsinline></video>
+    </a-assets>
+
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+    <a-entity id="target" mindar-image-target="targetIndex: 0">
+      <a-video src="#video" width="1.02" height="0.612" position="0 0 0"></a-video>
+    </a-entity>
+
+  </a-scene>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const sceneEl = document.querySelector('a-scene');
+      const video = document.querySelector('#video');
+      const uiContainer = document.querySelector('#ui-container');
+      const endOverlay = document.querySelector('#end-overlay');
+      const closeBtn = document.querySelector('#close-btn');
+      const targetEntity = document.querySelector('#target');
+      
+      let playCount = 0;
+      let playTimeout; // Biến quản lý delay
+
+      // 1. CLICK GỘP CAMERA & AUDIO
+      document.querySelector('#start-btn').addEventListener('click', () => {
+        sceneEl.systems["mindar-image-system"].start();
+        video.play().then(() => { video.pause(); });
+        uiContainer.style.display = 'none';
+      });
+
+      // 2. PHÁT VIDEO VỚI DELAY 0.5s
+      targetEntity.addEventListener("targetFound", () => {
+        // Thiết lập delay 500ms trước khi phát
+        playTimeout = setTimeout(() => {
+          video.play();
+        }, 500); 
+      });
+
+      targetEntity.addEventListener("targetLost", () => {
+        // Nếu mất dấu trước khi kịp phát, phải hủy lệnh delay
+        clearTimeout(playTimeout);
+        video.pause();
+      });
+
+      // 3. LOGIC KẾT THÚC & THAY ĐỔI ÂM LƯỢNG
+      video.addEventListener('ended', () => {
+        playCount++;
+        
+        if (playCount === 1) {
+          closeBtn.style.display = 'flex'; // Hiện X sau lần 1
+          video.play(); // Tự động lần 2
+        } 
+        else if (playCount >= 2) {
+          // LẦN PHÁT THỨ 3 TRỞ ĐI
+          video.volume = 0.3; // Giảm còn 30%
+          video.loop = true;
+          video.play();
+          
+          endOverlay.style.display = 'flex'; // Hiện lớp phủ mờ
+        }
+      });
+
+      // 4. ĐIỀU HƯỚNG
+      document.querySelector('#continue-btn').addEventListener('click', () => {
+        endOverlay.style.display = 'none';
+        video.volume = 1.0; // Trả lại 100% âm lượng
+        video.loop = false;
+        playCount = 1; 
+      });
+
+      document.querySelector('#back-btn').addEventListener('click', () => {
+        window.location.href = "https://your-landing-page.com";
+      });
+    });
+  </script>
+</body>
+</html>
